@@ -1,0 +1,14 @@
+*
+
+# Dependency management
+!Gemfile
+!Gemfile.lock
+
+# Settings
+!.env
+
+# Configuration
+!config.ru
+
+# App
+!server.rb
