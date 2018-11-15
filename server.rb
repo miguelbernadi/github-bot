@@ -1,3 +1,4 @@
+# coding: utf-8
 require 'sinatra'
 require 'logger'
 require 'json'
@@ -64,17 +65,17 @@ class GHAapp < Sinatra::Application
 #
   before do
     payload = {
-        # The time that this JWT was issued, _i.e._ now.
-        iat: Time.now.to_i,
+      # The time that this JWT was issued, _i.e._ now.
+      iat: Time.now.to_i,
 
-        # How long is the JWT good for (in seconds)?
-        # Let's say it can be used for 10 minutes before it needs to be refreshed.
-        # TODO we don't actually cache this token, we regenerate a new one every time!
-        exp: Time.now.to_i + (10 * 60),
+      # How long is the JWT good for (in seconds)?
+      # Let's say it can be used for 10 minutes before it needs to be refreshed.
+      # TODO we don't actually cache this token, we regenerate a new one every time!
+      exp: Time.now.to_i + (10 * 60),
 
-        # Your GitHub App's identifier number, so GitHub knows who issued the JWT, and know what permissions
-        # this token has.
-        iss: APP_IDENTIFIER
+      # Your GitHub App's identifier number, so GitHub knows who issued the JWT, and know what permissions
+      # this token has.
+      iss: APP_IDENTIFIER
     }
 
     # Cryptographically sign the JWT
@@ -133,11 +134,11 @@ class GHAapp < Sinatra::Application
   end
 
 
-########## Helpers
-#
-# These functions are going to help us do some tasks that we don't want clogging up the happy paths above, or
-# that need to be done repeatedly. You can add anything you like here, really!
-#
+  ########## Helpers
+  #
+  # These functions are going to help us do some tasks that we don't want clogging up the happy paths above, or
+  # that need to be done repeatedly. You can add anything you like here, really!
+  #
 
   helpers do
 
@@ -151,10 +152,10 @@ class GHAapp < Sinatra::Application
   end
 
 
-# Finally some logic to let us run this server directly from the commandline, or with Rack
-# Don't worry too much about this code ;) But, for the curious:
-# $0 is the executed file
-# __FILE__ is the current file
-# If they are the same—that is, we are running this file directly, call the Sinatra run method
+  # Finally some logic to let us run this server directly from the commandline, or with Rack
+  # Don't worry too much about this code ;) But, for the curious:
+  # $0 is the executed file
+  # __FILE__ is the current file
+  # If they are the same—that is, we are running this file directly, call the Sinatra run method
   run! if __FILE__ == $0
 end
