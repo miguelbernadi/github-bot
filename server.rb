@@ -125,10 +125,16 @@ class GHAapp < Sinatra::Application
     logger.debug "----         action #{payload['action']}" unless payload['action'].nil?
 
     case request.env['HTTP_X_GITHUB_EVENT']
-    when :the_event_that_i_care_about
+    when 'issues'
       # Add code here to handle the event that you care about!
-      handle_the_event_that_i_care_about(payload)
-    end
+      handle_issue(payload)
+    when 'issue_comment'
+      handle_issue_comment(payload)
+    when 'pull_request'
+      handle_pull_request(payload)
+    else
+      logger.debug payload
+             end
 
     'ok'  # we have to return _something_ ;)
   end
@@ -144,11 +150,38 @@ class GHAapp < Sinatra::Application
 
     # This is our handler for the event that you care about! Of course, you'll want to change the name to reflect
     # the actual event name! But this is where you will add code to process the event.
-    def handle_the_event_that_i_care_about(payload)
-      logger.debug 'Handling the event that we care about!'
-      true
+    def handle_issue(payload)
+      case payload['action']
+      when 'opened'
+        logger.debug 'Issue opened!'
+        true
+      else
+        logger.debug payload
+      end
     end
+    true
+  end
 
+  # These can be comments in issues or in PRs
+  def handle_issue_comment(payload)
+    case payload['action']
+    when 'created'
+      logger.debug 'New comment to process!'
+    else
+      logger.debug payload
+    end
+    true
+  end
+
+  # Events related to a pull request
+  def handle_pull_request(payload)
+    case payload['action']
+    when 'reopened'
+      logger.debug "PR reopened"
+    else
+      logger.debug payload
+    end
+    true
   end
 
 
