@@ -138,7 +138,6 @@ class GHAapp < Sinatra::Application
 
     case request.env['HTTP_X_GITHUB_EVENT']
     when 'issues'
-      # Add code here to handle the event that you care about!
       handle_issue(payload)
     when 'issue_comment'
       handle_issue_comment(payload)
@@ -167,12 +166,17 @@ class GHAapp < Sinatra::Application
       case payload['action']
       when 'opened'
         logger.debug 'Issue opened!'
-        true
+
+        authenticate_installation(payload)
+        repo = payload['repository']['full_name']
+        issue_number = payload['issue']['number']
+        @bot_client
+          .add_labels_to_an_issue(repo, issue_number, ['needs-response'])
       else
         logger.debug payload
+        true
       end
     end
-    true
   end
 
   # These can be comments in issues or in PRs
@@ -210,4 +214,12 @@ class GHAapp < Sinatra::Application
     true
   end
 
+  # This allows us to write actions in response to the received event
+  def authenticate_installation(payload)
+    installation_id = payload['installation']['id']
+    installation_token =
+      @client.create_app_installation_access_token(installation_id)[:token]
+    @bot_client ||= Octokit::Client.new(bearer_token: installation_token)
+    logger.debug 'Access token obtained'
+  end
 end
