@@ -189,7 +189,19 @@ class GHAapp < Sinatra::Application
       if pr?(payload)
         logger.debug "It's a PR"
         # If it's in a PR, does it have a command for us?
-        logger.debug 'We got a +1!!!' if payload['comment']['body'] == '+1'
+        case payload['comment']['body']
+        when '+1'
+          logger.debug 'We got a +1!!!'
+        when '-1'
+          logger.debug 'Bummer! We got a -1!'
+        when '[B]'
+          logger.debug 'This should be blocked'
+          authenticate_installation(payload)
+          repo = payload['repository']['full_name']
+          issue_number = payload['issue']['number']
+          @bot_client
+            .add_labels_to_an_issue(repo, issue_number, ['blocked'])
+        end
       else
         logger.debug "It's an issue"
       end
