@@ -180,10 +180,23 @@ class GHAapp < Sinatra::Application
     case payload['action']
     when 'created'
       logger.debug 'New comment to process!'
+
+      # Is this comment in a PR?
+      if pr?(payload)
+        logger.debug "It's a PR"
+        # If it's in a PR, does it have a command for us?
+        logger.debug 'We got a +1!!!' if payload['comment']['body'] == '+1'
+      else
+        logger.debug "It's an issue"
+      end
     else
       logger.debug payload
     end
     true
+  end
+
+  def pr?(payload)
+    payload['issue'].key? 'pull_request'
   end
 
   # Events related to a pull request
