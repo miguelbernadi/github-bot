@@ -59,9 +59,20 @@ class GHAapp < Sinatra::Application
     set :logging, Logger::DEBUG
   end
 
+  ########## Canary checks
   #
+  # This endpoint is used to check for the availability of its
+  # dependent services. If all dependencies are available, it returns
+  # a success code (200/204). If a dependency is not available it will
+  # return a failure code (503).
   #
+  # Optionally, it may also return a JSON document with details on
+  # which dependencies are available and which are not, together with
+  # any extra information that could be used to debug the situation.
 
+  get '/healthz' do
+    status 204
+  end
 
   namespace '/api/v0' do
     ########## Before each request to our app
