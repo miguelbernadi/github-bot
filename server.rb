@@ -59,95 +59,112 @@ class GHAapp < Sinatra::Application
     set :logging, Logger::DEBUG
   end
 
-  ########## Before each request to our app
+  ########## Canary checks
   #
-  # Before each request to our app, we want to instantiate an Octokit
-  # client. Doing so requires that we construct a JWT.
-  # https://jwt.io/introduction/ We have to also sign that JWT with
-  # our private key, so GitHub can be sure that a) it came from us b)
-  # it hasn't been altered by a malicious third party
+  # This endpoint is used to check for the availability of its
+  # dependent services. If all dependencies are available, it returns
+  # a success code (200/204). If a dependency is not available it will
+  # return a failure code (503).
   #
-  before do
-    payload = {
-      # The time that this JWT was issued, _i.e._ now.
-      iat: Time.now.to_i,
+  # Optionally, it may also return a JSON document with details on
+  # which dependencies are available and which are not, together with
+  # any extra information that could be used to debug the situation.
 
-      # How long is the JWT good for (in seconds)?  Let's say it can
-      # be used for 10 minutes before it needs to be refreshed.
-      #
-      # TODO we don't actually cache this token, we regenerate a new
-      # one every time!
-      exp: Time.now.to_i + (10 * 60),
-
-      # Your GitHub App's identifier number, so GitHub knows who
-      # issued the JWT, and know what permissions this token has.
-      iss: APP_IDENTIFIER
-    }
-
-    # Cryptographically sign the JWT
-    jwt = JWT.encode(payload, PRIVATE_KEY, 'RS256')
-
-    # Create the Octokit client, using the JWT as the auth token.
-    # Notice that this client will _not_ have sufficient permissions
-    # to do many interesting things!  We might, for particular
-    # endpoints, need to generate an installation token (using the
-    # JWT), and instantiate a new client object. But we'll cross that
-    # bridge when/if we get there!
-    @client ||= Octokit::Client.new(bearer_token: jwt)
+  get '/healthz' do
+    status 204
   end
 
-  ########## Events
-  #
-  # This is the webhook endpoint that GH will call with events, and
-  # hence where we will do our event handling
-  #
+  namespace '/api/v0' do
+    ########## Before each request to our app
+    #
+    # Before each request to our app, we want to instantiate an Octokit
+    # client. Doing so requires that we construct a JWT.
+    # https://jwt.io/introduction/ We have to also sign that JWT with
+    # our private key, so GitHub can be sure that a) it came from us b)
+    # it hasn't been altered by a malicious third party
+    #
+    before do
+      payload = {
+        # The time that this JWT was issued, _i.e._ now.
+        iat: Time.now.to_i,
 
-  post '/' do
-    request.body.rewind
-    # We need the raw text of the body to check the webhook signature
-    payload_raw = request.body.read
-    begin
-      payload = JSON.parse payload_raw
-    rescue
-      payload = {}
+        # How long is the JWT good for (in seconds)?  Let's say it can
+        # be used for 10 minutes before it needs to be refreshed.
+        #
+        # TODO we don't actually cache this token, we regenerate a new
+        # one every time!
+        exp: Time.now.to_i + (10 * 60),
+
+        # Your GitHub App's identifier number, so GitHub knows who
+        # issued the JWT, and know what permissions this token has.
+        iss: APP_IDENTIFIER
+      }
+
+      # Cryptographically sign the JWT
+      jwt = JWT.encode(payload, PRIVATE_KEY, 'RS256')
+
+      # Create the Octokit client, using the JWT as the auth token.
+      # Notice that this client will _not_ have sufficient permissions
+      # to do many interesting things!  We might, for particular
+      # endpoints, need to generate an installation token (using the
+      # JWT), and instantiate a new client object. But we'll cross that
+      # bridge when/if we get there!
+      @client ||= Octokit::Client.new(bearer_token: jwt)
     end
 
-    # Check X-Hub-Signature to confirm that this webhook was generated
-    # by GitHub, and not a malicious third party.  The way this works
-    # is: We have registered with GitHub a secret, and we have stored
-    # it locally in WEBHOOK_SECRET.  GitHub will cryptographically
-    # sign the request payload with this secret. We will do the same,
-    # and if the results match, then we know that the request is from
-    # GitHub (or, at least, from someone who knows the secret!)  If
-    # they don't match, this request is an attack, and we should
-    # reject it.  The signature comes in with header x-hub-signature,
-    # and looks like "sha1=123456" We should take the left hand side
-    # as the signature method, and the right hand side as the HMAC
-    # digest (the signature) itself.
-    their_signature_header = request.env['HTTP_X_HUB_SIGNATURE'] || 'sha1='
-    method, their_digest = their_signature_header.split('=')
-    our_digest = OpenSSL::HMAC.hexdigest(method, WEBHOOK_SECRET, payload_raw)
-    halt 401 unless their_digest == our_digest
+    ########## Events
+    #
+    # This is the webhook endpoint that GH will call with events, and
+    # hence where we will do our event handling
+    #
 
-    # Determine what kind of event this is, and take action as
-    # appropriate TODO we assume that GitHub will always provide an
-    # X-GITHUB-EVENT header in this case, which is a reasonable
-    # assumption, however we should probably be more careful!
-    logger.debug "---- received event #{request.env['HTTP_X_GITHUB_EVENT']}"
-    logger.debug "----         action #{payload['action']}" unless payload['action'].nil?
+    post '/' do
+      request.body.rewind
+      # We need the raw text of the body to check the webhook signature
+      payload_raw = request.body.read
+      begin
+        payload = JSON.parse payload_raw
+      rescue
+        payload = {}
+      end
 
-    case request.env['HTTP_X_GITHUB_EVENT']
-    when 'issues'
-      handle_issue(payload)
-    when 'issue_comment'
-      handle_issue_comment(payload)
-    when 'pull_request'
-      handle_pull_request(payload)
-    else
-      logger.debug payload
+      # Check X-Hub-Signature to confirm that this webhook was generated
+      # by GitHub, and not a malicious third party.  The way this works
+      # is: We have registered with GitHub a secret, and we have stored
+      # it locally in WEBHOOK_SECRET.  GitHub will cryptographically
+      # sign the request payload with this secret. We will do the same,
+      # and if the results match, then we know that the request is from
+      # GitHub (or, at least, from someone who knows the secret!)  If
+      # they don't match, this request is an attack, and we should
+      # reject it.  The signature comes in with header x-hub-signature,
+      # and looks like "sha1=123456" We should take the left hand side
+      # as the signature method, and the right hand side as the HMAC
+      # digest (the signature) itself.
+      their_signature_header = request.env['HTTP_X_HUB_SIGNATURE'] || 'sha1='
+      method, their_digest = their_signature_header.split('=')
+      our_digest = OpenSSL::HMAC.hexdigest(method, WEBHOOK_SECRET, payload_raw)
+      halt 401 unless their_digest == our_digest
+
+      # Determine what kind of event this is, and take action as
+      # appropriate TODO we assume that GitHub will always provide an
+      # X-GITHUB-EVENT header in this case, which is a reasonable
+      # assumption, however we should probably be more careful!
+      logger.debug "---- received event #{request.env['HTTP_X_GITHUB_EVENT']}"
+      logger.debug "----         action #{payload['action']}" unless payload['action'].nil?
+
+      case request.env['HTTP_X_GITHUB_EVENT']
+      when 'issues'
+        handle_issue(payload)
+      when 'issue_comment'
+        handle_issue_comment(payload)
+      when 'pull_request'
+        handle_pull_request(payload)
+      else
+        logger.debug payload
+      end
+
+      'ok' # we have to return _something_ ;)
     end
-
-    'ok' # we have to return _something_ ;)
   end
 
   ########## Helpers
