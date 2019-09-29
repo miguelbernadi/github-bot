@@ -1,6 +1,10 @@
-FROM ruby:2.5-alpine
+FROM ruby:2.5-slim
 
 ENV APP_HOME /opt/app
+
+RUN apt update \
+        # Required by sorbet
+	&& apt install -y git
 
 RUN gem install bundler
 
